@@ -191,11 +191,18 @@ object WeMessageApi : ApiFeature(), IResolveDex {
             }
         }
     }
-    private val classImportMultiVideo by dexClass {
-        matcher {
-            usingEqStrings("MicroMsg.GetVideoMetadata", "get video file name, dataString ")
-        }
-    }
+    /**
+     * 「多视频导入」线程, [sendVideo] 的载体; 由 [resolveDex] 填充。
+     *
+     * 8.0.65 ~ 8.0.78: 该实现是一个 `(Context, List, Intent, String, int, ?, boolean)` 七参构造的
+     * Thread, 类内日志串为 "MicroMsg.GetVideoMetadata" 与 "get video file name, dataString "。
+     * 8.0.79: 实现连同它的全部特征串 ("get video file name…"、"ImportMsgLocalId"、
+     * "ImportUseVideoTempCopyPath"、"ImportVideoTempPath"、"[insertErrMsg]") 已从微信中移除,
+     * 八参以内的 Thread 子类也不再出现同形构造。同等结构在 8.0.79 上只剩
+     * `(List, String, String, iface, iface)` 五参的 Thread, 其唯一构造方是
+     * `EditorUI.v7` / `NoteEditorUI.F7`(视频编辑 / 笔记发送), 语义不同, 故不替换。
+     */
+    private val classImportMultiVideo by dexClass()
     private val classAppMessage by dexClass {
         matcher {
             usingEqStrings("MicroMsg.AppMessage", "parse amessage xml failed")
@@ -495,6 +502,25 @@ object WeMessageApi : ApiFeature(), IResolveDex {
 
     @SuppressLint("NonUniqueDexKitData")
     override fun resolveDex(dexKit: DexKitBridge) {
+        // 多视频导入线程: 8.0.79 移除了该实现及其全部特征串, 属跨版本存在性差异, 记为预期失败,
+        // 让 sendVideo 在该宿主上明确报告不支持, 而不是把解析失败抛成非预期错误。
+        val multiVideoImport = dexKit.findClass {
+            matcher {
+                usingEqStrings("MicroMsg.GetVideoMetadata", "get video file name, dataString ")
+            }
+        }
+        when (multiVideoImport.size) {
+            1 -> classImportMultiVideo.setDescriptor(multiVideoImport.single())
+            0 -> classImportMultiVideo.setPlaceholderDescriptor(
+                expectedFailure = true,
+                reason = "the multi-video import thread was removed in 8.0.79",
+            )
+            else -> error(
+                "multiple multi-video import classes found: " +
+                    multiVideoImport.joinToString { it.name }
+            )
+        }
+
         val quoteCompose = methodQuoteCompose.data
         val quoteMsgItem = dexKit.findClass {
             matcher { className = "com.tencent.mm.plugin.msgquote.model.MsgQuoteItem" }
@@ -1390,6 +1416,13 @@ object WeMessageApi : ApiFeature(), IResolveDex {
     }
 
     fun sendVideo(toUser: String, videoPath: String): Boolean {
+        if (classImportMultiVideo.isPlaceholder) {
+            WeLogger.w(
+                TAG,
+                "sendVideo is unavailable on this host: the multi-video import thread was removed in 8.0.79"
+            )
+            return false
+        }
         return try {
             WeLogger.i(TAG, "sending video: $videoPath to $toUser")
             val thread = classImportMultiVideo.clazz.createInstance(

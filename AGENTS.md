@@ -72,7 +72,7 @@
 
 - Use `./x dex-test` to run the same `IResolveDex`/DexKit resolution steps used by
   `DexCacheManager.kt` against WeChat APKs on the Linux desktop. Test only the supported host
-  range **8.0.65–8.0.78**; APKs outside that range are useful for investigation but must not be
+  range **8.0.65–8.0.79**; APKs outside that range are useful for investigation but must not be
   treated as compatibility gates for the project.
 - Add `--workers 4` to exercise the same shared batch scheduler as local Android resolution.
   Use `--workers 1` for its serial comparison; omitting the option preserves per-feature runs.
@@ -184,7 +184,7 @@
   Kotlin's default implicit `public` visibility instead, because `internal` provides no meaningful
   boundary there.
 - Min SDK 28, target SDK 37, compile SDK 37
-- Target: WeChat `com.tencent.mm`, versions 8.0.65–8.0.78. Current host info in `HostInfo`
+- Target: WeChat `com.tencent.mm`, versions 8.0.65–8.0.79. Current host info in `HostInfo`
 - Process targeting via `TargetProcesses`: override `startup()` to check
   `TargetProcesses.isInMain` / `TargetProcesses.currentType`. Default: main process only.
 - Device behavior still requires manual testing on real WeChat; desktop JVM tests cover Dex
