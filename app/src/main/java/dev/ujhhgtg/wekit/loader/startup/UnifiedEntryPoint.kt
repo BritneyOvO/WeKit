@@ -27,7 +27,7 @@ object UnifiedEntryPoint {
         val self = ClassLoaders.MODULE
         val selfParent = self.parent
         if (self is InMemoryDexClassLoader) {
-            // The Zygisk payload's parent is the system loader. Keep the payload loader
+            // An in-memory module loader's parent is the system loader. Keep that loader
             // separately so HybridClassLoader can search its DEX without parent delegation.
             HybridClassLoader.moduleClassLoader = self
         }

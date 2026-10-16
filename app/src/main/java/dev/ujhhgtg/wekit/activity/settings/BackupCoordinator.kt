@@ -200,10 +200,11 @@ object BackupCoordinator {
         LegacyPaths.privateAgentRoot.toFile().deleteRecursively()
         File(HostInfo.application.filesDir, "wekit-python").deleteRecursively()
         File(HostInfo.application.filesDir, "wekit_skip_rewarded_js").deleteRecursively()
-        File(HostInfo.application.filesDir, ".wekit-native").deleteRecursively()
         File(HostInfo.application.codeCacheDir, "generated_proxy_classes").deleteRecursively()
         val mmkv = File(HostInfo.application.filesDir, "mmkv")
         listOf("wekit_prefs", "wekit_prefs.crc").forEach { File(mmkv, it).delete() }
+        // Extracted payloads left behind by the removed Zygisk loader.
+        File(HostInfo.application.filesDir, ".wekit-native").deleteRecursively()
         mmkv.listFiles()
             .orEmpty()
             .filter { it.name.startsWith(".wekit-bootstrap-") }

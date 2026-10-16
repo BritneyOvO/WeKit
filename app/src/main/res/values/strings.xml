@@ -27,7 +27,6 @@
     <string name="manager_launch_invalid_caller">This action can only be started from the WeKit panel inside WeChat.</string>
     <string name="manager_launch_root_required">Root access is required to open the LSPosed or Vector manager.</string>
     <string name="manager_launch_failed_message">Both supported manager launch methods failed.</string>
-    <string name="manager_launch_no_root_manager">No supported Root manager was found.</string>
     <string name="module_app_activation_active">Activated</string>
     <string name="module_app_activation_inactive">Not activated</string>
     <string name="module_app_activation_framework_details">%1$s %2$s (%3$d), API %4$d</string>
@@ -266,8 +265,6 @@
     <string name="home_loading_environment_value">Current loader: %1$s\nCurrent hook bridge: %2$s</string>
     <string name="loader_libxposed_api_name">libxposed API %1$d</string>
     <string name="loader_legacy_xposed_api_name">Legacy Xposed API %1$d</string>
-    <string name="loader_art_hook_name">ART hooks</string>
-    <string name="loader_zygisk_name">Zygisk loader</string>
     <string name="loader_frida_inject_name">Frida injection loader</string>
     <string name="common_not_provided">Not provided</string>
     <string name="config_export_failed">Export failed!</string>
@@ -1545,7 +1542,6 @@
     <string name="sticker_panel_error_similar_search">Similar sticker search failed</string>
     <string name="sticker_panel_error_source_recovery">Failed to recover online pack sources</string>
     <string name="sticker_panel_error_telegram_database">Failed to read Telegram database</string>
-    <string name="sticker_panel_error_telegram_discovery">Failed to scan Telegram instances</string>
     <string name="sticker_panel_error_telegram_import">Failed to import Telegram sticker pack</string>
     <string name="sticker_panel_error_upload">Upload failed</string>
     <string name="sticker_panel_error_wechat_import">Failed to import WeChat stickers</string>
@@ -1629,7 +1625,6 @@
     <plurals name="sticker_telegram_import_result"><item quantity="one">Imported %1$d sticker into “%2$s”; %3$d unchanged, %4$d failed</item><item quantity="other">Imported %1$d stickers into “%2$s”; %3$d unchanged, %4$d failed</item></plurals>
     <string name="sticker_telegram_input_invalid">Enter a valid Telegram sticker pack name or link</string>
     <string name="sticker_telegram_input_label">Sticker pack name or link</string>
-    <string name="sticker_telegram_instance_title">Select a Telegram instance</string>
     <string name="sticker_telegram_pack_selection_description">Previously imported sticker packs are unselected by default. Select them again to continue or update the import.</string>
     <string name="sticker_telegram_pack_selection_title">Select Telegram sticker packs</string>
     <string name="sticker_telegram_phase_conversion">Conversion</string>
@@ -3381,7 +3376,6 @@
     <string name="voip_block_outgoing_summary">Block the ringtone played while placing an audio or video call</string>
     <string name="voip_block_incoming">Block incoming ringtone</string>
     <string name="voip_block_incoming_summary">Block the ringtone played when receiving an audio or video call</string>
-    <string name="voip_pip_zygisk_unavailable">The picture-in-picture window must be hosted by an Activity in the module app whose manifest declares supportsPictureInPicture; WeChat has no such Activity. Because the module app is not installed in Zygisk mode, this feature is available only in LSPosed mode.</string>
     <string name="voip_virtual_video_title">Virtual video call settings</string>
     <string name="voip_virtual_video_source">Video source</string>
     <string name="voip_virtual_video_local_file">Local file</string>

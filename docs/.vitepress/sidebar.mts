@@ -54,7 +54,7 @@ function scan(root: string, directory: string): DefaultTheme.SidebarItem[] {
 
 export function createSidebar(root: string): DefaultTheme.SidebarItem[] {
   const guides = [
-    'index', 'getting-started', 'installation', 'zygisk', 'configuration',
+    'index', 'getting-started', 'installation', 'configuration',
     'module-settings', 'faq', 'bug-report-guide', 'feature-request-guide', 'cosmic-level-disclaimer',
   ].map(name => ({ text: pageTitle(join(root, name + '.md')), link: name === 'index' ? '/' : '/' + name }))
   const featuresRoot = join(root, 'features')

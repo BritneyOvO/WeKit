@@ -126,8 +126,6 @@ import dev.ujhhgtg.wekit.features.items.chat.panel.sticker.TelegramStickerImport
 import dev.ujhhgtg.wekit.features.items.chat.panel.sticker.TelegramStickerImportProgress
 import dev.ujhhgtg.wekit.features.items.chat.panel.sticker.TelegramStickerImportResult
 import dev.ujhhgtg.wekit.features.items.chat.panel.sticker.TelegramStickerPackRepository
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ZygiskLoaderService
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ZygiskTelegramRootClient
 import dev.ujhhgtg.wekit.loader.startup.StartupInfo
 import dev.ujhhgtg.wekit.ui.content.GlobalImageLoader
 import dev.ujhhgtg.wekit.ui.utils.TelegramIcon
@@ -344,7 +342,6 @@ private fun StickerPanelContent(
     var telegramDiscoveredSets by remember { mutableStateOf<List<TelegramInstalledStickerSet>?>(null) }
     var selectedTelegramSetNames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var telegramDiscoveryLoading by remember { mutableStateOf(false) }
-    var zygiskInstancePickerVisible by remember { mutableStateOf(false) }
     var telegramProgress by remember { mutableStateOf<TelegramStickerImportProgress?>(null) }
     var telegramBatchProgress by remember { mutableStateOf<TelegramBatchImportProgress?>(null) }
     var telegramImportJob by remember { mutableStateOf<Job?>(null) }
@@ -1728,12 +1725,6 @@ private fun StickerPanelContent(
             onDismiss = { telegramSourcePrompt = false },
             onSelect = { source ->
                 telegramSourcePrompt = false
-                if (source == TelegramDatabaseSource.ROOT &&
-                    StartupInfo.loaderService is ZygiskLoaderService
-                ) {
-                    zygiskInstancePickerVisible = true
-                    return@TelegramDatabaseSourcePrompt
-                }
                 telegramDiscoveryLoading = true
                 actions.pickTelegramStickerSets(source) { result ->
                     if (result == null) {
@@ -1771,114 +1762,6 @@ private fun StickerPanelContent(
             },
         )
 
-        if (zygiskInstancePickerVisible) {
-            var instances by remember { mutableStateOf<List<String>?>(null) }
-            var selectedPackage by remember { mutableStateOf<String?>(null) }
-            var discoveryError by remember { mutableStateOf<PanelUiText?>(null) }
-            var reading by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) {
-                val result = withContext(Dispatchers.IO) {
-                    ZygiskTelegramRootClient.discoverInstances()
-                }
-                result.fold(
-                    onSuccess = { pkgs ->
-                        instances = pkgs
-                        selectedPackage = pkgs.singleOrNull()
-                    },
-                    onFailure = { discoveryError = it.toPanelUiText(R.string.sticker_panel_error_telegram_discovery) },
-                )
-            }
-            PanelFullOverlay(
-                onDismiss = { if (!reading) zygiskInstancePickerVisible = false },
-                allowImplicitDismiss = !reading,
-            ) {
-                Text(stringResource(R.string.sticker_telegram_instance_title), style = MaterialTheme.typography.titleMedium)
-                when {
-                    discoveryError != null -> Text(
-                        requireNotNull(discoveryError).resolve(),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    instances == null -> CircularProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(top = 8.dp),
-                    )
-                    else -> Column(modifier = Modifier.padding(top = 4.dp)) {
-                        requireNotNull(instances).forEach { pkg ->
-                            ListItem(
-                                modifier = Modifier.clickable { selectedPackage = pkg },
-                                content = { Text(pkg) },
-                                leadingContent = {
-                                    RadioButton(
-                                        selected = selectedPackage == pkg,
-                                        onClick = { selectedPackage = pkg },
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
-                if (reading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.weight(1f))
-                    TextButton(
-                        onClick = { zygiskInstancePickerVisible = false },
-                        enabled = !reading,
-                    ) { Text(stringResource(R.string.dialog_cancel)) }
-                    TextButton(
-                        onClick = {
-                            val pkg = selectedPackage ?: return@TextButton
-                            reading = true
-                            scope.launch {
-                                val result = runCatching {
-                                    withContext(Dispatchers.IO) {
-                                        ZygiskTelegramRootClient.readInstalledSets(
-                                            cacheDir = PanelPaths.panelCacheDir.toFile(),
-                                            packageName = pkg,
-                                        ).getOrThrow()
-                                    }
-                                }
-                                reading = false
-                                zygiskInstancePickerVisible = false
-                                result.fold(
-                                    onSuccess = { sets ->
-                                        telegramDiscoveryLoading = true
-                                        scope.launch {
-                                            try {
-                                                val importedNames = withContext(Dispatchers.IO) {
-                                                    actions.loadImportedTelegramStickerSetNames()
-                                                }
-                                                val uniqueSets = sets.distinctBy { it.name.lowercase() }
-                                                if (uniqueSets.isEmpty()) {
-                                                    operationMessage = panelUiText(R.string.sticker_telegram_empty_database)
-                                                } else {
-                                                    selectedTelegramSetNames = uniqueSets
-                                                        .mapNotNullTo(linkedSetOf()) { set ->
-                                                            set.name.takeUnless { it.lowercase() in importedNames }
-                                                        }
-                                                    telegramDiscoveredSets = uniqueSets
-                                                }
-                                            } finally {
-                                                telegramDiscoveryLoading = false
-                                            }
-                                        }
-                                    },
-                                    onFailure = {
-                                        operationMessage = it.toPanelUiText(R.string.sticker_panel_error_telegram_database)
-                                    },
-                                )
-                            }
-                        },
-                        enabled = selectedPackage != null && instances != null && !reading,
-                    ) { Text(stringResource(R.string.dialog_confirm)) }
-                }
-            }
-        }
 
         telegramDiscoveredSets?.let { sets ->
             PanelListSelectionPrompt(

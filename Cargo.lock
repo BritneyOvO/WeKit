@@ -3316,18 +3316,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wekit-zygisk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cmake",
- "jni",
- "libc",
- "sha2",
- "zip",
-]
-
-[[package]]
 name = "which"
 version = "4.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

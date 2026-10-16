@@ -33,8 +33,6 @@ import com.composables.icons.materialsymbols.outlined.Check_circle
 import dev.ujhhgtg.wekit.BuildConfig
 import dev.ujhhgtg.wekit.R
 import dev.ujhhgtg.wekit.activity.openLsposedManager
-import dev.ujhhgtg.wekit.activity.openRootManager
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ZygiskLoaderService
 import dev.ujhhgtg.wekit.loader.startup.StartupInfo
 import dev.ujhhgtg.wekit.ui.content.m3.BaseWidget
 import dev.ujhhgtg.wekit.ui.content.m3.SegmentedColumn
@@ -66,7 +64,6 @@ fun HomePager() {
 private fun StatusCard() {
     val context = LocalContext.current
     val activity = LocalComponentActivity.current
-    var showNoRootManager by remember { mutableStateOf(false) }
     val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     val statusTitle = stringResource(R.string.home_module_activated)
     val hookBridgeName = StartupInfo.hookBridge?.hookBridgeName
@@ -80,11 +77,7 @@ private fun StatusCard() {
         contentColor = contentColor,
         shape = MaterialTheme.shapes.large,
         onClick = {
-            if (StartupInfo.loaderService is ZygiskLoaderService) {
-                showNoRootManager = !openRootManager(context)
-            } else {
-                openLsposedManager(activity)
-            }
+            openLsposedManager(activity)
         },
     ) {
         ListItem(
@@ -123,18 +116,6 @@ private fun StatusCard() {
         )
     }
 
-    if (showNoRootManager) {
-        AlertDialog(
-            onDismissRequest = { showNoRootManager = false },
-            title = { Text(stringResource(R.string.manager_launch_failed_title)) },
-            text = { Text(stringResource(R.string.manager_launch_no_root_manager)) },
-            confirmButton = {
-                TextButton(onClick = { showNoRootManager = false }) {
-                    Text(stringResource(R.string.dialog_confirm))
-                }
-            },
-        )
-    }
 }
 
 @Composable

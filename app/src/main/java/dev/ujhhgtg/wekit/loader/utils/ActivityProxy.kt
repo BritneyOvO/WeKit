@@ -159,7 +159,7 @@ object ActivityProxy {
          *  - PipVoipActivity 需要清单里的 `supportsPictureInPicture`。system_server 校验的是
          *    被启动组件在清单里的 flag（见 `ActivityRecord.supportsPictureInPicture()`），
          *    而宿主没有任何 Activity 声明过它，借壳就永远进不了画中画。也正因为如此，
-         *    对应的功能只能在 LSPosed 模式下用（Zygisk 模式下模块应用没有安装）。
+         *    对应的功能必须由模块应用自己的进程承载。
          */
         private val NON_PROXY_ACTIVITIES = listOf("MainActivity", "PipVoipActivity")
 
@@ -328,7 +328,7 @@ object ActivityProxy {
                 )
             }
             // fast path
-            // also fixes compatibility with FunBox Zygisk
+            // also fixes compatibility with FunBox's in-memory payload
             // I haven't the foggiest idea of why upstream chose to use try-catch for this
             if (ActProxyMgr.isModuleProxyActivity(resolvedClass)) {
                 return ClassLoaders.MODULE.loadClass(resolvedClass)

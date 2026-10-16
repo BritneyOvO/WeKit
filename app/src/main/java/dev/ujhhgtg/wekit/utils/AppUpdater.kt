@@ -16,7 +16,6 @@ import dev.ujhhgtg.wekit.constants.PackageNames
 import dev.ujhhgtg.wekit.i18n.LocaleResourceMode
 import dev.ujhhgtg.wekit.i18n.LocalizedContextFactory
 import dev.ujhhgtg.wekit.i18n.WeKitLocaleController
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ZygiskLoaderService
 import dev.ujhhgtg.wekit.loader.startup.StartupInfo
 import dev.ujhhgtg.wekit.utils.android.getSystemService
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +61,6 @@ private val ABI_APK_MAP = mapOf(
 )
 private const val UPDATE_JSON_URL = "$BASE_URL/update.json"
 private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
-private const val ZIP_MIME_TYPE = "application/zip"
 
 /** Returns the best APK URL for this device. */
 private fun apkUrlForDevice(): String {
@@ -72,10 +70,6 @@ private fun apkUrlForDevice(): String {
     }
     error("Unsupported Android ABI: ${supportedAbis.joinToString()}")
 }
-
-/** Matches the release name emitted by the Zygisk packager. */
-private fun zygiskModuleFileName(info: UpdateInfo): String =
-    "WeKit-${info.versionCode}-${info.versionName}-release.zip"
 
 // ─── AppUpdater ───────────────────────────────────────────────────────────────
 
@@ -127,9 +121,7 @@ object AppUpdater {
     }
 
     /**
-     * Downloads the update matching the active loader. Zygisk mode downloads
-     * the module ZIP and opens it with a compatible root manager; other modes
-     * download the APK and open the system package installer.
+     * Downloads the update APK and opens the system package installer.
      *
      * Requires the `REQUEST_INSTALL_PACKAGES` permission and a FileProvider
      * authority of `<packageName>.provider` in your manifest.
@@ -138,38 +130,17 @@ object AppUpdater {
      * [BroadcastReceiver] on [Dispatchers.Main].
      */
     suspend fun downloadAndInstall(context: Context, info: UpdateInfo) {
-        val isZygisk = StartupInfo.loaderService is ZygiskLoaderService
-        val fileName: String
-        val downloadUrl: String
-        val mimeType: String
-        if (isZygisk) {
-            fileName = zygiskModuleFileName(info)
-            downloadUrl = "$BASE_URL/$fileName"
-            mimeType = ZIP_MIME_TYPE
-        } else {
-            fileName = "wekit-${info.versionName}.apk"
-            downloadUrl = apkUrlForDevice()
-            mimeType = APK_MIME_TYPE
-        }
+        val fileName = "wekit-${info.versionName}.apk"
+        val downloadUrl = apkUrlForDevice()
+        val mimeType = APK_MIME_TYPE
 
         val downloadId = enqueueDownload(context, downloadUrl, fileName, mimeType)
         val downloadedFile = waitForDownload(context, downloadId)
         val contentUri = getDownloadedFileUri(context, downloadedFile)
 
-        if (isZygisk) {
-            launchKsuWithModule(context, contentUri)
-        } else {
-            installApk(context, contentUri)
-        }
+        installApk(context, contentUri)
     }
 
-    fun launchKsuWithModule(context: Context, zipUri: Uri) {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(zipUri, ZIP_MIME_TYPE)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(intent)
-    }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 

@@ -102,24 +102,12 @@ jobs:
           cache-on-failure: true
           workspaces: . -> target
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          version: "0.12.8"
-          python-version: "3.12"
-          enable-cache: false
-
       - name: Install system dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y gcc-multilib
-          uv sync --locked --managed-python --project wekit-zygisk --all-groups
-          echo "$GITHUB_WORKSPACE/wekit-zygisk/.venv/bin" >> "$GITHUB_PATH"
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib
 
       - name: Validate build tools, DEX reader, and i18n catalogs
         run: |
           cargo test -p xtask --bin xtask
-          cargo test -p wekit-zygisk --lib
-          uv run --no-sync --project wekit-zygisk python wekit-zygisk/native/tests/arm64_relocation.py
           ./x i18n-check
 
       - name: Decode keystore
@@ -150,8 +138,7 @@ jobs:
 
           for flavor in standard legacy; do
             apk="app/build/outputs/apk/$flavor/release/app-$flavor-release.apk"
-            uv run --no-sync --project wekit-zygisk python .github/scripts/verify-dual-apk.py --check-installer "$apk"
-            WEKIT_TEST_APK="$GITHUB_WORKSPACE/$apk" cargo test -p wekit-zygisk --lib apk::tests::reads_built_apk -- --ignored
+            python3 .github/scripts/verify-apk.py "$apk"
 
             cp -v "$apk" dist/apk/
           done
@@ -452,18 +439,8 @@ jobs:
         with:
           targets: aarch64-linux-android
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          version: "0.12.8"
-          python-version: "3.12"
-          enable-cache: false
-
       - name: Install system dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y gcc-multilib
-          uv sync --locked --managed-python --project wekit-zygisk --group build
-          echo "$GITHUB_WORKSPACE/wekit-zygisk/.venv/bin" >> "$GITHUB_PATH"
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib
 
       - name: Free disk space and report
         # This job is much heavier than a plain APK build (cold PRoot build,

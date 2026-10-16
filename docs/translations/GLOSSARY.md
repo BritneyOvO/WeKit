@@ -8,7 +8,6 @@
 | WeKit | WeKit | WeKit | 产品名不翻译。 |
 | WeChat | 微信 | 微信 | 使用官方中文产品名。 |
 | Xposed | Xposed | Xposed | 不翻译。 |
-| Zygisk | Zygisk | Zygisk | 不翻译。 |
 | DexKit | DexKit | DexKit | 不翻译。 |
 | Moments | 朋友圈 | 朋友圈 | 英语 UI 使用 “Moments”；代码和 Dex 术语仍可使用 `sns`。 |
 | Channels | 视频号 | 視訊號 | 仅用于面向用户的产品术语，不替换代码标识符。 |

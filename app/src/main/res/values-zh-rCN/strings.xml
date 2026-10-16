@@ -18,7 +18,6 @@
     <string name="manager_launch_invalid_caller">只允许从微信内的 WeKit 面板启动此操作</string>
     <string name="manager_launch_root_required">打开 LSPosed 或 Vector 管理器需要 Root 权限</string>
     <string name="manager_launch_failed_message">两种受支持的管理器启动方式均执行失败</string>
-    <string name="manager_launch_no_root_manager">未找到受支持的 Root 管理器</string>
     <string name="module_app_activation_active">已激活</string>
     <string name="module_app_activation_inactive">未激活</string>
     <string name="module_app_activation_framework_details">%1$s %2$s (%3$d), API %4$d</string>
@@ -237,8 +236,6 @@
     <string name="home_loading_environment">加载环境</string>
     <string name="home_loading_environment_value">当前加载器：%1$s\n当前 Hook 桥接：%2$s</string>
     <string name="loader_legacy_xposed_api_name">旧式 Xposed API %1$d</string>
-    <string name="loader_art_hook_name">ART 钩子</string>
-    <string name="loader_zygisk_name">Zygisk 加载器</string>
     <string name="loader_frida_inject_name">Frida 注入加载器</string>
     <string name="common_not_provided">未提供</string>
     <string name="config_export_failed">导出失败!</string>
@@ -1507,7 +1504,6 @@
     <string name="sticker_panel_error_similar_search">相似表情搜索失败</string>
     <string name="sticker_panel_error_source_recovery">在线包来源恢复失败</string>
     <string name="sticker_panel_error_telegram_database">读取 Telegram 数据库失败</string>
-    <string name="sticker_panel_error_telegram_discovery">扫描 Telegram 实例失败</string>
     <string name="sticker_panel_error_telegram_import">Telegram 表情包导入失败</string>
     <string name="sticker_panel_error_upload">上传失败</string>
     <string name="sticker_panel_error_wechat_import">微信原生表情导入失败</string>
@@ -1595,7 +1591,6 @@
     </plurals>
     <string name="sticker_telegram_input_invalid">请输入有效的 Telegram 表情包名称或链接</string>
     <string name="sticker_telegram_input_label">表情包名称或链接</string>
-    <string name="sticker_telegram_instance_title">选择 Telegram 实例</string>
     <string name="sticker_telegram_pack_selection_description">已导入的表情包默认不选中；重新选择可以继续或更新导入。</string>
     <string name="sticker_telegram_pack_selection_title">选择 Telegram 表情包</string>
     <string name="sticker_telegram_phase_conversion">转换</string>
@@ -3418,7 +3413,6 @@
     <string name="voip_block_outgoing_summary">屏蔽拨出音视频通话时的铃声</string>
     <string name="voip_block_incoming">屏蔽呼入铃声</string>
     <string name="voip_block_incoming_summary">屏蔽收到音视频通话请求时的铃声</string>
-    <string name="voip_pip_zygisk_unavailable">画中画窗口必须由模块应用自己的 Activity 承载（清单里要声明 supportsPictureInPicture，微信没有这样的 Activity）, 而 Zygisk 模式下模块应用并未安装, 因此本功能仅在 LSPosed 模式下可用!</string>
     <string name="voip_virtual_video_title">虚拟视频通话配置</string>
     <string name="voip_virtual_video_source">视频来源</string>
     <string name="voip_virtual_video_local_file">本地文件</string>

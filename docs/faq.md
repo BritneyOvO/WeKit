@@ -5,9 +5,6 @@
 Xposed / 免 Root 模式按照
 [此处说明](installation.md#修复微信热更新导致的模块不加载) 进行修复。
 
-Zygisk 模式先确认 WebUI 中对应 Android 用户和微信的开关已经打开, 再完全结束并
-重新启动微信。仍未加载时参见 [Zygisk 常见问题](zygisk.md#常见问题)。
-
 ## 2. 我的微信突然卡得要死, 狂吃内存
 
 尝试禁用「Xposed API 调用保护」和「隐藏应用列表」。

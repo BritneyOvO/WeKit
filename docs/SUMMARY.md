@@ -3,7 +3,6 @@
 * [👋 欢迎](README.md)
 * [🚀 快速开始](getting-started.md)
 * [📥 安装指南](installation.md)
-* [🧩 Zygisk 模式](zygisk.md)
 * [⚙️ 配置指南](configuration.md)
 * [🔧 模块设置说明](module-settings.md)
 * [🛠️ 开发指南](development/README.md)

@@ -54,7 +54,7 @@ Python plugins are trusted arbitrary in-process code. There is no sandbox, permi
 
 ## Verification boundary
 
-Desktop compilation and `./x extensions pack --only python-runtime` verify the base/runtime build and artifact hand-off. They do not prove JNI ownership, arbitrary-APK assets, direct Android/WeKit/WeChat imports, normal vs Zygisk loader behavior, or 16 KB-page behavior. Those P0 claims require an arm64 device report recording runtime hash, WeChat build, process, loader, ABI and page size.
+Desktop compilation and `./x extensions pack --only python-runtime` verify the base/runtime build and artifact hand-off. They do not prove JNI ownership, arbitrary-APK assets, direct Android/WeKit/WeChat imports, or 16 KB-page behavior. Those P0 claims require an arm64 device report recording runtime hash, WeChat build, process, loader, ABI and page size.
 
 The published desktop artifact deliberately contains `classes.dex` and a unique
 `classes2.dex` probe, the patched Chaquopy bridge, `chaquopy/build.json`, and only
@@ -63,4 +63,4 @@ LIFO/error-aggregating cleanup. P0-B/D/E/F/G/I/J remain unverified until the
 required device runs are recorded, and the diagnostics screen reports that
 boundary instead of inferring support from these desktop checks.
 
-Manual release checks cover both normal and Zygisk loaders, a 16 KB-page device, Android/WeKit/WeChat imports, one pure-Python plugin, light/dark settings themes, predictive back, empty/missing-runtime/error states, plugin detail/edit/diagnostics navigation, activation rollback and runtime-update restart messaging. An unrun item remains unsupported rather than being inferred from a desktop build.
+Manual release checks cover both Xposed entrypoints, a 16 KB-page device, Android/WeKit/WeChat imports, one pure-Python plugin, light/dark settings themes, predictive back, empty/missing-runtime/error states, plugin detail/edit/diagnostics navigation, activation rollback and runtime-update restart messaging. An unrun item remains unsupported rather than being inferred from a desktop build.

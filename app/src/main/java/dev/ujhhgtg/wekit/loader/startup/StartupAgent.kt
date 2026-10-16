@@ -7,8 +7,6 @@ import dev.ujhhgtg.reflekt.utils.ReflectionClassLoader
 import dev.ujhhgtg.wekit.R
 import dev.ujhhgtg.wekit.loader.abc.IHookBridge
 import dev.ujhhgtg.wekit.loader.abc.ILoaderService
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ArtHookBridge
-import dev.ujhhgtg.wekit.loader.entry.zygisk.ZygiskLoaderService
 import dev.ujhhgtg.wekit.loader.utils.HybridClassLoader
 import dev.ujhhgtg.wekit.loader.utils.NativeLoader
 import dev.ujhhgtg.wekit.data.LegacyDocumentMigration
@@ -57,9 +55,7 @@ object StartupAgent {
         StartupInfo.hookBridge = hookBridge
 
         ensureHiddenApiAccess()
-        if (loaderService !is ZygiskLoaderService) {
-            checkWxForModulePath(modulePath)
-        }
+        checkWxForModulePath(modulePath)
 
         HostInfo.init(application)
         NativeLoader.init()
@@ -70,9 +66,6 @@ object StartupAgent {
             LegacyStorageMigration.run(application)
             LegacyDocumentMigration.run(application)
             JsonDataMigration.run()
-        }
-        if (hookBridge is ArtHookBridge) {
-            hideModuleLibraries(hookBridge)
         }
         // Isolated processes have no module features and must never touch the shared Room file.
         // In particular, FeaturesLoader would otherwise initialize DexCache/Room while the main
@@ -88,20 +81,6 @@ object StartupAgent {
         // Only commit after every required startup phase completes. The caller
         // already logs a thrown failure, and a later lifecycle callback can retry.
         initialized = true
-    }
-
-    private fun hideModuleLibraries(hookBridge: ArtHookBridge) {
-        runCatching { hookBridge.hideLoadedModuleLibraries() }
-            .onSuccess { hidden ->
-                WeLogger.i(
-                    TAG,
-                    "hid loaded module libraries"
-                )
-                if (!hidden) WeLogger.w(TAG, "module native-library hiding was incomplete")
-            }
-            .onFailure {
-                WeLogger.e(TAG, "failed to hide module libraries", it)
-            }
     }
 
     private fun checkWxForModulePath(modulePath: String) {

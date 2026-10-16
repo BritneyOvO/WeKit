@@ -46,7 +46,6 @@ lsparanoid {
         "dev.ujhhgtg.wekit.loader.startup.ModuleLoader",
         "dev.ujhhgtg.wekit.loader.entry",
         "dev.ujhhgtg.wekit.loader.utils.NativeLoader",
-        "dev.ujhhgtg.wekit.loader.utils.ZygiskNativePayload",
         "dev.ujhhgtg.wekit.constants.PackageNames",
         "dev.ujhhgtg.wekit.utils.fs.PathUtilsKt",
         "dev.ujhhgtg.wekit.BuildConfig",
@@ -234,21 +233,6 @@ androidComponents {
         variant.buildConfigFields!!.put("COMMIT_HASH", gitHash.map {
             BuildConfigField("String", "\"$it\"", null)
         })
-
-        val generateZygiskResources = tasks.register<GenerateZygiskResourcesTask>(
-            "generate${variant.name.replaceFirstChar { it.uppercase() }}ZygiskResources"
-        ) {
-            description = "Generate Zygisk module Resources"
-            templateDir.set(rootProject.layout.projectDirectory.dir("wekit-zygisk/template"))
-            versionCode.set(variant.outputs.single().versionCode)
-            versionName.set(variant.outputs.single().versionName)
-            variantName.set(variant.name)
-            outputDir.set(layout.buildDirectory.dir("generated/zygiskResources/${variant.name}"))
-        }
-        variant.sources.resources!!.addGeneratedSourceDirectory(
-            generateZygiskResources,
-            GenerateZygiskResourcesTask::outputDir
-        )
 
         val kotlinSources = variant.sources.kotlin ?: return@onVariants
 

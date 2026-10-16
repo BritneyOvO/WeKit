@@ -20,12 +20,9 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
     env, fs,
-    io::{BufWriter, Write},
     path::{Path, PathBuf},
     process::Command,
 };
-use walkdir::WalkDir;
-use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 mod dex_test;
 mod dex_test_ci;
@@ -61,13 +58,11 @@ struct AbiSpec {
 enum ApkNativeBuildStep {
     Configure,
     WeKitNative,
-    ZygiskNative,
 }
 
 const APK_NATIVE_BUILD_STEPS: &[ApkNativeBuildStep] = &[
     ApkNativeBuildStep::Configure,
     ApkNativeBuildStep::WeKitNative,
-    ApkNativeBuildStep::ZygiskNative,
 ];
 
 // Order matches the template in ConfigureCargoTask.kt so that
@@ -82,8 +77,6 @@ static ABI_TABLE: &[AbiSpec] = &[AbiSpec {
 /// ABIs included in release APKs (the default build targets).
 static RELEASE_ABIS: &[&str] = &["arm64-v8a"];
 
-const ZYGISK_CARGO_PACKAGE: &str = "wekit-zygisk";
-const ZYGISK_MODULE_ID: &str = "wekit_zygisk";
 // ── CLI ────────────────────────────────────────────────────────────────────────
 
 #[derive(Parser)]
@@ -109,10 +102,9 @@ enum Cmd {
     /// Pass --native-only to compile only the Rust .so and copy it to jniLibs/.
     Build(BuildArgs),
 
-    /// Build and install the app, or flash the same APK as a Zygisk module.
+    /// Build and install the app on a connected device.
     ///
-    /// Defaults to installStandardDebug. With --zygisk, assembles the selected
-    /// APK and installs it through the device's root manager instead.
+    /// Defaults to installStandardDebug.
     Run(RunArgs),
 
     /// Run `cargo check` on the native library for each target ABI.
@@ -139,7 +131,7 @@ enum Cmd {
 
 #[derive(Args)]
 struct BuildArgs {
-    /// Prepare all application and Zygisk native inputs in jniLibs/.
+    /// Prepare all application native inputs in jniLibs/.
     /// Skips the Gradle Android build entirely.
     #[arg(long)]
     native_only: bool,
@@ -158,10 +150,6 @@ struct BuildArgs {
     /// Enable string/resource protection. Defaults to false for debug, true for release.
     #[arg(long, value_name = "BOOL", action = clap::ArgAction::Set)]
     protect: Option<bool>,
-
-    /// Also archive unstripped Zygisk native symbols under target/zygisk-symbols/.
-    #[arg(long)]
-    save_symbols: bool,
 
     #[command(flatten)]
     native: NativeArgs,
@@ -187,21 +175,10 @@ struct RunArgs {
     #[arg(long, value_name = "BOOL", action = clap::ArgAction::Set)]
     protect: Option<bool>,
 
-    /// Install the APK as a Zygisk module through the device's root manager.
-    #[arg(long)]
-    zygisk: bool,
-
     /// adb device serial (also used for normal APK installation).
     #[arg(short, long)]
     device: Option<String>,
 
-    /// Root manager: magisk, ksu, or ap. Auto-detected when omitted.
-    #[arg(long, requires = "zygisk")]
-    root: Option<String>,
-
-    /// Reboot after a successful module installation.
-    #[arg(short, long, requires = "zygisk")]
-    reboot: bool,
 }
 
 impl RunArgs {
@@ -354,10 +331,6 @@ fn invoke_tool_artifact_paths(root: &Path, spec: &AbiSpec) -> (PathBuf, PathBuf)
     )
 }
 
-fn zygisk_dir(root: &Path) -> PathBuf {
-    root.join("wekit-zygisk")
-}
-
 // ── ABI resolution ─────────────────────────────────────────────────────────────
 
 fn resolve_abis<'a>(names: &[String]) -> Result<Vec<&'a AbiSpec>> {
@@ -430,7 +403,7 @@ fn find_android_home(workspace_root: &Path) -> Result<String> {
 /// Return the `bin/` path inside the *pinned* NDK's prebuilt llvm dir.
 ///
 /// The version comes from `[versions].ndk` in `gradle/libs.versions.toml` — the same value AGP
-/// consumes as `ndkVersion` and the Zygisk strip step uses. Picking the highest installed NDK
+/// consumes as `ndkVersion` and the native strip step uses. Picking the highest installed NDK
 /// instead would silently compile and link the native lib with a toolchain nothing else uses.
 fn find_ndk_bin_dir(root: &Path) -> Result<String> {
     let ndk_version = pinned_ndk_version(root)?;
@@ -516,18 +489,6 @@ fn task_configure() -> Result<()> {
         .with_context(|| format!("failed to write {}", config_path.display()))?;
     println!("configure: wrote {}", config_path.display());
 
-    // The C++ ART bridge uses exactly the same pinned NDK/API as Rust and AGP.
-    let ndk_dir = pinned_ndk_dir(&root, None)?;
-    let zygisk_out = format!(
-        "{out}WEKIT_ANDROID_NDK = \"{}\"\nWEKIT_ANDROID_API = \"{MIN_SDK}\"\n",
-        ndk_dir.to_string_lossy().replace('\\', "/")
-    );
-    let zygisk_config_path = zygisk_dir(&root).join("native/.cargo/config.toml");
-    fs::create_dir_all(zygisk_config_path.parent().unwrap())?;
-    fs::write(&zygisk_config_path, &zygisk_out)
-        .with_context(|| format!("failed to write {}", zygisk_config_path.display()))?;
-    println!("configure: wrote {}", zygisk_config_path.display());
-
     Ok(())
 }
 
@@ -535,7 +496,7 @@ fn task_configure() -> Result<()> {
 
 fn task_build(args: BuildArgs) -> Result<()> {
     if args.native_only {
-        task_prepare_apk_native_inputs(&args.native.abis, args.save_symbols)
+        task_prepare_apk_native_inputs(&args.native.abis)
     } else {
         task_build_android(&args)
     }
@@ -555,7 +516,7 @@ fn gradle_variant_task(verb: &str, flavor: Option<&Flavor>, release: bool) -> St
 
 /// Full Android build via the Gradle wrapper (native lib compiled first).
 fn task_build_android(args: &BuildArgs) -> Result<()> {
-    task_prepare_apk_native_inputs(&args.native.abis, args.save_symbols)?;
+    task_prepare_apk_native_inputs(&args.native.abis)?;
     let root = workspace_root();
     let gradle_task = gradle_variant_task("assemble", args.flavor.as_ref(), args.release);
     let protection = args.protect.map(|value| format!("-Pprotect={value}"));
@@ -569,11 +530,9 @@ fn task_build_android(args: &BuildArgs) -> Result<()> {
 
 /// Install the app on a connected device or emulator via the Gradle wrapper (native lib compiled first).
 fn task_run(args: RunArgs) -> Result<()> {
-    validate_root_manager(args.root.as_deref())?;
-    task_prepare_apk_native_inputs(&[], false)?;
+    task_prepare_apk_native_inputs(&[])?;
     let root = workspace_root();
-    let verb = if args.zygisk { "assemble" } else { "install" };
-    let gradle_task = gradle_variant_task(verb, Some(&args.flavor), args.is_release());
+    let gradle_task = gradle_variant_task("install", Some(&args.flavor), args.is_release());
     println!("run: ./gradlew {gradle_task}");
     let mut command = Command::new(root.join(if cfg!(windows) {
         "gradlew.bat"
@@ -587,50 +546,17 @@ fn task_run(args: RunArgs) -> Result<()> {
     if let Some(device) = &args.device {
         command.env("ANDROID_SERIAL", device);
     }
-    run_checked(&mut command, "build/install dual-format APK")?;
-    if args.zygisk {
-        let flavor = match args.flavor {
-            Flavor::Standard => "standard",
-            Flavor::Legacy => "legacy",
-        };
-        let profile = if args.is_release() {
-            "release"
-        } else {
-            "debug"
-        };
-        let apk = root.join(format!(
-            "app/build/outputs/apk/{flavor}/{profile}/app-{flavor}-{profile}.apk"
-        ));
-        validate_module_apk(&apk)?;
-        install_zygisk_apk(&root, &apk, args.device.as_deref(), args.root.as_deref())?;
-        if args.reboot {
-            run_adb(
-                &root,
-                args.device.as_deref(),
-                &[
-                    "shell".into(),
-                    "su".into(),
-                    "-c".into(),
-                    "svc power reboot || reboot".into(),
-                ],
-            )?;
-        }
-    }
-    Ok(())
+    run_checked(&mut command, "install APK")
 }
-
 fn apk_native_build_steps() -> &'static [ApkNativeBuildStep] {
     APK_NATIVE_BUILD_STEPS
 }
 
-fn task_prepare_apk_native_inputs(abi_args: &[String], save_symbols: bool) -> Result<()> {
+fn task_prepare_apk_native_inputs(abi_args: &[String]) -> Result<()> {
     for step in apk_native_build_steps() {
         match step {
             ApkNativeBuildStep::Configure => task_configure()?,
             ApkNativeBuildStep::WeKitNative => task_build_native(abi_args)?,
-            ApkNativeBuildStep::ZygiskNative => {
-                build_zygisk_native(&workspace_root(), abi_args, save_symbols)?
-            }
         }
     }
     Ok(())
@@ -848,8 +774,6 @@ fn task_build_native(abi_args: &[String]) -> Result<()> {
     Ok(())
 }
 
-// ── Task: zygisk ──────────────────────────────────────────────────────────────
-
 #[derive(Deserialize)]
 struct GradleVersionCatalog {
     versions: GradleVersions,
@@ -906,297 +830,8 @@ fn copy_if_changed(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn build_zygisk_native(root: &Path, abi_names: &[String], save_symbols: bool) -> Result<()> {
-    // Do not recursively initialize LSPlant's unrelated SSH test submodules.
-    // The explicit override checks out its pinned gitlink despite update=none.
-    run_cmd(
-        "git",
-        &[
-            "-c",
-            "submodule.third_party/lsplant.update=checkout",
-            "submodule",
-            "update",
-            "--init",
-            "--",
-            "third_party/lsplant",
-            "third_party/xz-embedded",
-        ],
-        root,
-    )?;
-    run_cmd(
-        "git",
-        &[
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-            "--",
-            "lsplant/src/main/jni/external/dex_builder",
-        ],
-        &root.join("third_party/lsplant"),
-    )?;
-    let ndk = pinned_ndk_dir(root, None)?;
-    let strip = ndk
-        .join("toolchains/llvm/prebuilt")
-        .join(host_prebuilt_tag()?)
-        .join("bin/llvm-strip");
-    for abi in resolve_abis(abi_names)? {
-        // The package release profile retains symbols; only the packaged copy is stripped.
-        run_cargo(
-            &[
-                "build",
-                "-p",
-                ZYGISK_CARGO_PACKAGE,
-                "--target",
-                abi.cargo_triple,
-                "--release",
-            ],
-            &zygisk_dir(root).join("native"),
-        )?;
-        let name = format!("lib{ZYGISK_MODULE_ID}.so");
-        let source = root
-            .join("target")
-            .join(abi.cargo_triple)
-            .join("release")
-            .join(&name);
-        let destination = jni_libs_dir(root).join(abi.android_name).join(&name);
-        let cache = root.join("target/zygisk").join(abi.android_name);
-        fs::create_dir_all(&cache)?;
-        let mut hash = Sha256::new();
-        hash.update(fs::read(&source)?);
-        hash.update(fs::read(&strip)?);
-        let input_hash = hex_encode(&hash.finalize());
-        let marker = cache.join("strip.sha256");
-        let current = fs::read(&destination)
-            .ok()
-            .map(|bytes| format!("{input_hash}\n{}", hex_encode(&Sha256::digest(bytes))));
-        if current.is_none() || fs::read_to_string(&marker).ok() != current {
-            let temporary = cache.join(&name);
-            run_cmd_owned(
-                strip.to_str().context("non-UTF-8 strip path")?,
-                &[
-                    "--strip-all".into(),
-                    "-o".into(),
-                    temporary.display().to_string(),
-                    source.display().to_string(),
-                ],
-                root,
-            )?;
-            copy_if_changed(&temporary, &destination)?;
-            fs::write(
-                &marker,
-                format!(
-                    "{input_hash}\n{}",
-                    hex_encode(&Sha256::digest(fs::read(&destination)?))
-                ),
-            )?;
-            println!("build(zygisk): {}", destination.display());
-        } else {
-            println!("build(zygisk): unchanged {}", destination.display());
-        }
-        if save_symbols {
-            let symbols = root.join("target/zygisk-symbols");
-            let stage = symbols.join("files").join(abi.android_name);
-            copy_if_changed(&source, &stage.join(&name))?;
-            let commit = git_output(root, &["rev-parse", "--short=8", "HEAD"])?;
-            let archive = symbols.join(format!("WeKit-{commit}-{}-symbols.zip", abi.android_name));
-            write_zip_from_directory(&stage, &archive)?;
-            println!("build(symbols): {}", archive.display());
-        }
-    }
-    Ok(())
-}
-
-fn validate_module_apk(path: &Path) -> Result<()> {
-    let mut archive = ZipArchive::new(fs::File::open(path)?)?;
-    for name in [
-        "AndroidManifest.xml",
-        "classes.dex",
-        "resources.arsc",
-        "module.prop",
-        "customize.sh",
-        "META-INF/com/google/android/update-binary",
-        "META-INF/com/google/android/updater-script",
-        "lib/arm64-v8a/libwekit_zygisk.so",
-        "lib/arm64-v8a/libwekit_native.so",
-    ] {
-        let mut entry = archive.by_name(name).with_context(|| {
-            format!(
-                "{} is not a dual-format APK: missing {name}",
-                path.display()
-            )
-        })?;
-        if entry.size() == 0 {
-            bail!("empty APK entry: {name}");
-        }
-        std::io::copy(&mut entry, &mut std::io::sink())?;
-    }
-    Ok(())
-}
-
-fn git_output(root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .with_context(|| format!("failed to run git {}", args.join(" ")))?;
-    if !output.status.success() {
-        bail!(
-            "git {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    String::from_utf8(output.stdout)
-        .map(|value| value.trim().to_owned())
-        .context("git output was not UTF-8")
-}
-
-/// Zip `source` into `destination`, atomically.
-///
-/// The archive is streamed into a sibling `.partial` file and renamed onto `destination` only
-/// once the write fully succeeded, so a failed symbol export never publishes a partial archive.
-fn write_zip_from_directory(source: &Path, destination: &Path) -> Result<()> {
-    let file_name = destination.file_name().with_context(|| {
-        format!(
-            "archive destination has no file name: {}",
-            destination.display()
-        )
-    })?;
-    let mut temp_name = file_name.to_owned();
-    temp_name.push(".partial");
-    let temp_path = destination.with_file_name(temp_name);
-
-    if let Err(error) = stream_zip_from_directory(source, &temp_path) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-
-    if let Err(error) = fs::rename(&temp_path, destination) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error).with_context(|| {
-            format!(
-                "could not move {} onto {}",
-                temp_path.display(),
-                destination.display()
-            )
-        });
-    }
-
-    Ok(())
-}
-
-fn stream_zip_from_directory(source: &Path, destination: &Path) -> Result<()> {
-    let output = fs::File::create(destination)
-        .with_context(|| format!("could not create {}", destination.display()))?;
-    let mut zip = ZipWriter::new(BufWriter::new(output));
-    let directory_options = SimpleFileOptions::default();
-    let file_options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-
-    for entry in WalkDir::new(source).min_depth(1).sort_by_file_name() {
-        let entry = entry.with_context(|| format!("could not traverse {}", source.display()))?;
-        let relative = entry
-            .path()
-            .strip_prefix(source)
-            .expect("walked path must be inside source");
-        let name = relative.to_string_lossy().replace('\\', "/");
-        if entry.file_type().is_dir() {
-            zip.add_directory(format!("{name}/"), directory_options)?;
-            continue;
-        }
-        if !entry.file_type().is_file() {
-            bail!(
-                "unsupported non-file archive entry: {}",
-                entry.path().display()
-            );
-        }
-
-        zip.start_file(&name, file_options)?;
-        let mut input = fs::File::open(entry.path())?;
-        std::io::copy(&mut input, &mut zip)?;
-    }
-    zip.finish()?.flush()?;
-    Ok(())
-}
-
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn validate_root_manager(root: Option<&str>) -> Result<Option<&str>> {
-    match root {
-        None => Ok(None),
-        Some("magisk" | "ksu" | "kernelsu" | "ap" | "apatch") => Ok(root),
-        Some(value) => bail!("unsupported root manager `{value}`; use magisk, ksu, or ap"),
-    }
-}
-
-fn run_adb(root: &Path, device: Option<&str>, args: &[String]) -> Result<()> {
-    let mut adb_args = Vec::new();
-    if let Some(device) = device {
-        adb_args.push("-s".to_owned());
-        adb_args.push(device.to_owned());
-    }
-    adb_args.extend(args.iter().cloned());
-    run_cmd_owned("adb", &adb_args, root)
-}
-
-fn install_zygisk_apk(
-    root: &Path,
-    apk_path: &Path,
-    device: Option<&str>,
-    manager: Option<&str>,
-) -> Result<()> {
-    let manager = validate_root_manager(manager)?;
-    // The bytes are the signed APK; only the device-side extension changes.
-    let remote_zip = format!("/data/local/tmp/wekit-module-{}.zip", std::process::id());
-    let remote_script = "/data/local/tmp/install_wekit_zygisk.sh";
-    let script = zygisk_dir(root).join("scripts/install_module.sh");
-    run_adb(
-        root,
-        device,
-        &[
-            "push".to_owned(),
-            apk_path.display().to_string(),
-            remote_zip.clone(),
-        ],
-    )?;
-    run_adb(
-        root,
-        device,
-        &[
-            "push".to_owned(),
-            script.display().to_string(),
-            remote_script.to_owned(),
-        ],
-    )?;
-
-    let manager_arg = manager
-        .map(|manager| format!(" {manager}"))
-        .unwrap_or_default();
-    let install_command = format!("sh {remote_script} {remote_zip}{manager_arg}");
-    let install_result = run_adb(
-        root,
-        device,
-        &[
-            "shell".to_owned(),
-            "su".to_owned(),
-            "-c".to_owned(),
-            install_command,
-        ],
-    );
-    let cleanup_result = run_adb(
-        root,
-        device,
-        &[
-            "shell".to_owned(),
-            "su".to_owned(),
-            "-c".to_owned(),
-            format!("rm -f {remote_script} {remote_zip}"),
-        ],
-    );
-    install_result?;
-    cleanup_result
 }
 
 // ── Task: check / clippy ───────────────────────────────────────────────────────
@@ -1235,11 +870,6 @@ fn run_gradlew(args: &[&str], cwd: &Path) -> Result<()> {
         "./gradlew"
     };
     run_cmd(gradlew, args, cwd)
-}
-
-fn run_cmd_owned(program: &str, args: &[String], cwd: &Path) -> Result<()> {
-    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_cmd(program, &refs, cwd)
 }
 
 fn run_cmd(program: &str, args: &[&str], cwd: &Path) -> Result<()> {
@@ -1344,7 +974,6 @@ mod tests {
             &[
                 ApkNativeBuildStep::Configure,
                 ApkNativeBuildStep::WeKitNative,
-                ApkNativeBuildStep::ZygiskNative,
             ],
         );
     }
@@ -1503,29 +1132,15 @@ mod tests {
     }
 
     #[test]
-    fn run_zygisk_accepts_install_options_and_rejects_them_for_app_install() {
-        let args = parse_run_args(&[
-            "--zygisk",
-            "--flavor",
-            "legacy",
-            "--release",
-            "--device",
-            "serial",
-            "--root",
-            "ksu",
-            "--reboot",
-        ]);
-        assert!(args.zygisk && args.is_release() && args.reboot);
-        assert!(matches!(args.flavor, Flavor::Legacy));
-        assert_eq!(args.device.as_deref(), Some("serial"));
-        assert_eq!(args.root.as_deref(), Some("ksu"));
+    fn run_rejects_removed_module_install_flags() {
+        assert!(Cli::try_parse_from(["xtask", "run", "--zygisk"]).is_err());
         assert!(Cli::try_parse_from(["xtask", "run", "--root", "ksu"]).is_err());
         assert!(Cli::try_parse_from(["xtask", "run", "--reboot"]).is_err());
+        assert!(Cli::try_parse_from(["xtask", "build", "--save-symbols"]).is_err());
         assert!(Cli::try_parse_from(["xtask", "zygisk", "build"]).is_err());
     }
-
     #[test]
-    fn parses_zygisk_ndk_from_gradle_version_catalog() {
+    fn parses_pinned_ndk_from_gradle_version_catalog() {
         let ndk_version = parse_pinned_ndk_version(
             "[versions]\nndk = \"30.0.14904198\"\nminSdk = \"28\"\n",
             Path::new(VERSION_CATALOG_PATH),

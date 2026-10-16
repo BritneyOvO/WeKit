@@ -1,6 +1,6 @@
 # WeKit
 
-适用于微信的增强模块，支持 Xposed 和 Zygisk 两种加载方式。
+适用于微信的 Xposed 增强模块。
 
 <img alt="fabric" height="56" src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/fabric_vector.svg"> <img alt="forge" height="56" src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/unsupported/forge_vector.svg">
 
@@ -13,7 +13,6 @@
 
 - [🚀 快速开始](https://docs.wekit.ujhhgtg.dev/getting-started)
 - [📥 安装指南](https://docs.wekit.ujhhgtg.dev/installation)
-- [🧩 Zygisk 模式](https://docs.wekit.ujhhgtg.dev/zygisk)
 - [⚙️ 配置指南](https://docs.wekit.ujhhgtg.dev/configuration)
 - [❓ 常见问题](https://docs.wekit.ujhhgtg.dev/faq)
 - [🛠 开发指南](https://docs.wekit.ujhhgtg.dev/development)
